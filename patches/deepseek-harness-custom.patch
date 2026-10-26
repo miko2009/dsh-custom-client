@@ -1,0 +1,96 @@
+diff --git a/packages/boot/app-boot/src/profile.ts b/packages/boot/app-boot/src/profile.ts
+index 64f65878ec..db13c5a5f4 100644
+--- a/packages/boot/app-boot/src/profile.ts
++++ b/packages/boot/app-boot/src/profile.ts
+@@ -113,7 +113,12 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
+     patchReload: 'startup',
+   },
+   web: {
+-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
++    bundles: [
++      '@deepseek-ai/dsh-base',
++      '@deepseek-ai/dsh-web-app',
++      '@deepseek-ai/dsh-experimental-agent-team-profile',
++      '@deepseek-ai/dsh-experimental-agent-team-web-profile',
++    ],
+     patchReload: 'live',
+   },
+   headless: {
+diff --git a/packages/sandbox/sandbox/src/escalation.ts b/packages/sandbox/sandbox/src/escalation.ts
+index 5cc180fe2b..8f70ff4945 100644
+--- a/packages/sandbox/sandbox/src/escalation.ts
++++ b/packages/sandbox/sandbox/src/escalation.ts
+@@ -156,6 +156,9 @@ export interface EscalationRequest {
+  */
+ export async function approveEscalation<A, C>(request: EscalationRequest, approval: EscalationApproval<A, C>): Promise<SandboxMode> {
+   const { requestedMode: mode, effectiveMode, justification, subject } = request
++  // A model may retain the generic escalation fields after the session already
++  // holds that mode. This does not expand privileges, so no approval is needed.
++  if (mode === effectiveMode) return effectiveMode
+   // Strict widening is an EXECUTION check against the call's effective mode —
+   // deliberately not a schema constraint (the enum is the closed target
+   // vocabulary; the effective mode is per-call truth).
+diff --git a/packages/sandbox/sandbox/tests/escalation.spec.ts b/packages/sandbox/sandbox/tests/escalation.spec.ts
+index 15810d09d5..21317e28e4 100644
+--- a/packages/sandbox/sandbox/tests/escalation.spec.ts
++++ b/packages/sandbox/sandbox/tests/escalation.spec.ts
+@@ -81,11 +81,15 @@ describe('approveEscalation', () => {
+     expect(seen[0]?.reason).toBe('escalate sandbox to workspace-write: the user asked to write in the workspace')
+   })
+ 
+-  it('a non-widening request fails closed with its own text and never asks', async () => {
++  it('accepts a repeated current-mode request without asking, but otherwise fails closed', async () => {
+     const seen: unknown[] = []
+     const spy = ingredients({ approver: approver('allowed-once', r => seen.push(r)) })
+     await expect(approveEscalation(req({ requestedMode: 'read-only' }), spy))
+       .rejects.toThrow(/not strictly wider than this call's current "read-only" mode/)
++    await expect(approveEscalation(req({ requestedMode: 'workspace-write', effectiveMode: 'workspace-write' }), spy))
++      .resolves.toBe('workspace-write')
++    await expect(approveEscalation(req({ requestedMode: 'danger-full-access', effectiveMode: 'danger-full-access' }), spy))
++      .resolves.toBe('danger-full-access')
+     await expect(approveEscalation(req({ requestedMode: 'workspace-write', effectiveMode: 'danger-full-access' as never }), spy))
+       .rejects.toThrow(/not strictly wider/)
+     expect(seen).toEqual([])
+diff --git a/packages/subagent/tool-subagent/src/index.ts b/packages/subagent/tool-subagent/src/index.ts
+index 5ca770d7d7..72ae36852d 100644
+--- a/packages/subagent/tool-subagent/src/index.ts
++++ b/packages/subagent/tool-subagent/src/index.ts
+@@ -29,6 +29,7 @@ import {
+   assertAllowedModelSelection,
+   hasConfiguredLlmSelection,
+   hasDelegationModelRequest,
++  normalizeDelegationModelRequest,
+   preflightChildLlmRoute,
+   requestedAgentOptions,
+ } from './model-selection.ts'
+@@ -475,7 +476,7 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
+             throw new Error('subagent tool requires a calling agent (exec.agent was undefined)')
+           }
+ 
+-          const modelRequest = args as DelegationModelRequest
++          const modelRequest = normalizeDelegationModelRequest(args as DelegationModelRequest)
+           const parentOptions = parentAgentOptionsForDelegation(parent)
+           const requiresRoutePreflight = hasDelegationModelRequest(modelRequest)
+             || hasConfiguredLlmSelection(config.agentOptions)
+diff --git a/packages/subagent/tool-subagent/src/model-selection.ts b/packages/subagent/tool-subagent/src/model-selection.ts
+index 5f30b71742..37932414ad 100644
+--- a/packages/subagent/tool-subagent/src/model-selection.ts
++++ b/packages/subagent/tool-subagent/src/model-selection.ts
+@@ -68,6 +68,17 @@ export interface DelegationModelRequest {
+   readonly reasoning_effort?: string
+ }
+ 
++/**
++ * Treat an incomplete route emitted as empty optional fields as omission.
++ * Omission inherits the configured or parent route; an empty id cannot select
++ * a model and should not fail an otherwise valid delegation.
++ */
++export function normalizeDelegationModelRequest(request: DelegationModelRequest): DelegationModelRequest {
++  if (request.provider !== '' && request.model !== '') return request
++  const { provider: _provider, model: _model, ...rest } = request
++  return rest
++}
++
+ /**
+  * Whether a call explicitly selects any child LLM value.
+  * @param request - Model-facing route fields from the tool call.

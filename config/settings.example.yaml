@@ -1,0 +1,25 @@
+# Copy to ~/.dsh/settings.yaml and replace the placeholder values locally.
+# Never commit the copied file or an API key.
+llm-pi-ai:
+  providers:
+    example:
+      displayName: Example OpenAI-compatible provider
+      apiKeyEnv: EXAMPLE_API_KEY
+      api: openai-responses
+      baseURL: https://api.example.com/v1
+      defaultInput:
+        - text
+        - image
+      models:
+        - id: example-vision-model
+          name: Example vision model
+
+agent-default-model:
+  provider: example
+  model: example-vision-model
+
+subagent-model-selection:
+  enabled: true
+  allowedModels:
+    - provider: example
+      model: example-vision-model

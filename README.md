@@ -1,3 +1,29 @@
+# DSH Desktop Custom
+
+Public, reproducible custom build of [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop), pinned to `v2.0.10` and its `deepseek-harness` submodule at `dsh-v0.1.5-rc.2`.
+
+## Included changes
+
+- Enables DeepSeek Harness experimental Agent Teams in the web profile.
+- Supports declaring image-capable models through `defaultInput: [text, image]`.
+- Treats duplicate sandbox permission requests at the current mode as no-ops.
+- Treats empty child-agent provider/model fields as model-route omission, allowing inheritance.
+
+## Local configuration
+
+Copy `config/settings.example.yaml` to `~/.dsh/settings.yaml`, then replace the example provider endpoint, model IDs, and `EXAMPLE_API_KEY` environment variable locally. Do not commit that file, API keys, session data, or app output.
+
+## Build macOS unsigned app
+
+```bash
+./scripts/build-macos-unsigned.sh
+```
+
+macOS may require a manual security approval because the resulting app is unsigned and unnotarized.
+
+## Scope and provenance
+
+This repository does not distribute a prebuilt app, personal provider configuration, credentials, or Multica runtime integration. See the upstream repositories for their licenses and notices; this repository preserves the Desktop project's upstream license and third-party notices.
 <p align="center">
   <a href="https://dshdesktop.cn"><img src="assets/desktop-hero-zh.png" alt="DSH Desktop：基于 DeepSeek Harness 构建的开源桌面客户端" width="100%"></a>
 </p>

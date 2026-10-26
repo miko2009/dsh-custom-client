@@ -1,3 +1,21 @@
+# Local DSH state, credentials, and session data
+.dsh/
+settings.yaml
+.env
+.env.*
+!.env.example
+
+# Dependency/build output
+node_modules/
+dist/
+coverage/
+*.dmg
+*.zip
+
+# OS/editor artifacts
+.DS_Store
+.idea/
+.vscode/
 .DS_Store
 .yarn/*
 !.yarn/patches
